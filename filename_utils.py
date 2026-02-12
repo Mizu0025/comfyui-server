@@ -11,9 +11,12 @@ def get_image_filename(prompt_id: str, index: int, extension: str = "webp") -> s
 
 def get_domain_path(filepath: str, domain: str = "") -> str:
     """
-    Converts a local filesystem path to a URL path (placeholder for now).
+    Converts a local filesystem path to a URL using the provided domain.
     """
+    if not filepath:
+        return ""
+    
     filename = os.path.basename(filepath)
-    # The original bot seems to just return the path or a URL if configured.
-    # For now we'll just return the filename or relative path.
+    if domain:
+        return f"{domain.rstrip('/')}/{filename}"
     return filename

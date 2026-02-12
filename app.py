@@ -3,12 +3,14 @@ import logging
 import asyncio
 import uuid
 from typing import Optional, Dict, List, Any
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from image_generator import ImageGenerator
 from prompt_parser import PromptParser
+from filename_utils import get_domain_path
 
 # Load environment variables
 load_dotenv()
@@ -20,12 +22,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="FateBot Image Generation Service")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    asyncio.create_task(worker())
+    reset_inactivity_timer()
+    yield
+    # Shutdown logic can go here if needed
+
+app = FastAPI(title="FateBot Image Generation Service", lifespan=lifespan)
 
 # Configuration
 COMFYUI_ADDRESS = os.getenv("COMFYUI_ADDRESS", "127.0.0.1")
 COMFYUI_PORT = int(os.getenv("COMFYUI_PORT", 8188))
 COMFYUI_FOLDER_PATH = os.getenv("COMFYUI_FOLDER_PATH", "./output")
+WEB_DOMAIN = os.getenv("WEB_DOMAIN", "")
 MODEL_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config", "modelConfiguration.json")
 # Generation Service
 generator = ImageGenerator(
@@ -83,7 +94,8 @@ async def worker():
             
             # Generate
             image_path = await generator.generate_image(filtered_prompt)
-            job.result = image_path
+            job.result = get_domain_path(image_path, WEB_DOMAIN) if WEB_DOMAIN else image_path
+            
             job.status = "completed"
         except Exception as e:
             logger.error(f"Job {job.id} failed: {e}")
@@ -95,10 +107,7 @@ async def worker():
             queue.task_done()
             reset_inactivity_timer()
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(worker())
-    reset_inactivity_timer()
+
 
 # API Endpoints
 class GenerateRequest(BaseModel):
