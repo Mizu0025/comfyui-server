@@ -55,6 +55,7 @@ The service acts as a bridge between a frontend client (like an IRC or Matrix bo
     COMFYUI_ADDRESS=127.0.0.1
     COMFYUI_PORT=8188
     COMFYUI_FOLDER_PATH=/path/to/comfyui/output
+    WEB_DOMAIN=https://yourdomain.com/
     LOG_LEVEL=INFO
     ```
 
@@ -106,7 +107,7 @@ Submit a new generation task.
 
 ### `GET /job/{job_id}`
 Check current status of a task.
-- **Response**: `{"status": "queued/processing/completed/failed", "result": "path_to_image", "error": null}`
+- **Response**: `{"status": "queued/processing/completed/failed", "result": "URL_to_image", "error": null}`
 
 ### `GET /wait/{job_id}`
 Block until the job finishes and return the final result.
