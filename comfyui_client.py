@@ -40,7 +40,7 @@ class ComfyUIClient:
                     return result['prompt_id']
         except Exception as e:
             logger.error(f"Error queuing prompt: {e}")
-            raise Exception(f"Failed to queue prompt: {e}")
+            raise Exception(f"[ComfyUI API Error] Failed to queue prompt: {e}")
 
     async def connect_websocket(self):
         """
@@ -53,7 +53,7 @@ class ComfyUIClient:
             return self.ws
         except Exception as e:
             logger.error(f"Error connecting to ComfyUI server: {e}")
-            raise Exception(f"Could not connect to ComfyUI server at {self.address}. Is the server running?")
+            raise Exception(f"[ComfyUI Connection Error] Could not connect to ComfyUI server at {self.address}. Is ComfyUI running? ({e})")
 
     async def get_images_from_websocket(self, prompt_id: str) -> Dict[str, List[bytes]]:
         """
@@ -98,7 +98,7 @@ class ComfyUIClient:
                         output_images[current_node].append(image_data)
         except Exception as e:
             logger.error(f"Error processing WebSocket message: {e}")
-            raise Exception(f"Error processing WebSocket message: {e}")
+            raise Exception(f"[ComfyUI WebSocket Error] {e}")
 
     async def close(self):
         """

@@ -110,7 +110,10 @@ async def worker():
         try:
             # Parse prompt
             raw_msg = job.raw_message
-            filtered_prompt = PromptParser.parse_input(raw_msg)
+            try:
+                filtered_prompt = PromptParser.parse_input(raw_msg)
+            except Exception as pe:
+                raise Exception(f"[Prompt Error] Failed to parse options: {pe}")
             
             # Generate
             image_path = await generator.generate_image(filtered_prompt)

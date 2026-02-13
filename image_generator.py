@@ -54,7 +54,7 @@ class ImageGenerator:
             logger.info(f"Loading workflow: {workflow_name}")
             workflow_data = WorkflowLoader.load_workflow_by_name(workflow_name)
             if not workflow_data:
-                raise Exception(f"Failed to load workflow: {workflow_name}")
+                raise Exception(f"[Internal Service Error] Failed to load workflow: {workflow_name}")
 
             # Create prompt data
             prompt_wrapper = PromptProcessor.create_prompt_data(workflow_data)
@@ -67,7 +67,7 @@ class ImageGenerator:
             await client.connect_websocket()
             prompt_id = await client.queue_prompt(prompt_wrapper['workflow'])
             if not prompt_id:
-                raise Exception("Failed to queue prompt.")
+                raise Exception("[ComfyUI API Error] Failed to queue prompt.")
 
             # Get images
             images_dict = await client.get_images_from_websocket(prompt_id)
@@ -85,7 +85,7 @@ class ImageGenerator:
             elif len(saved_paths) == 1:
                 return saved_paths[0]
             else:
-                raise Exception("No images were generated")
+                raise Exception("[Internal Service Error] No images were generated")
 
         except Exception as e:
             logger.error(f"Error during image generation: {e}")
