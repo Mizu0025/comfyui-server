@@ -56,6 +56,7 @@ The service acts as a bridge between a frontend client (like an IRC or Matrix bo
     COMFYUI_PORT=8188
     COMFYUI_FOLDER_PATH=/path/to/comfyui/output
     WEB_DOMAIN=https://yourdomain.com/
+    MAX_CONCURRENT_JOBS=1
     LOG_LEVEL=INFO
     ```
 

@@ -80,7 +80,7 @@ class ImageGenerator:
             # Generate grid
             if len(saved_paths) > 1:
                 logger.info(f"Generating image grid from {len(saved_paths)} images")
-                grid_path = ImageGrid.generate_image_grid(saved_paths)
+                grid_path = await ImageGrid.generate_image_grid(saved_paths)
                 return grid_path
             elif len(saved_paths) == 1:
                 return saved_paths[0]
@@ -107,9 +107,12 @@ class ImageGenerator:
             filepath = os.path.join(self.output_dir, filename)
 
             try:
-                # Convert to webp using PIL
-                img = Image.open(io.BytesIO(image_bytes))
-                img.save(filepath, "WEBP")
+                # Run the blocking Pillow conversion in a thread
+                def _save_task():
+                    img = Image.open(io.BytesIO(image_bytes))
+                    img.save(filepath, "WEBP")
+                
+                await asyncio.to_thread(_save_task)
                 saved_images.append(filepath)
                 logger.debug(f"Saved image: {filename}")
             except Exception as e:

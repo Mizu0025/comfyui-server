@@ -5,6 +5,7 @@ import uuid
 from typing import Optional, Dict, List, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -24,13 +25,25 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup logic
-    asyncio.create_task(worker())
+    # Startup logic: Start multiple workers to handle concurrency
+    for i in range(MAX_CONCURRENT_JOBS):
+        logger.info(f"Starting worker {i+1}/{MAX_CONCURRENT_JOBS}")
+        asyncio.create_task(worker())
+    
     reset_inactivity_timer()
     yield
     # Shutdown logic can go here if needed
 
 app = FastAPI(title="FateBot Image Generation Service", lifespan=lifespan)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Configuration
 COMFYUI_ADDRESS = os.getenv("COMFYUI_ADDRESS", "127.0.0.1")
@@ -46,6 +59,9 @@ generator = ImageGenerator(
     model_config_path=MODEL_CONFIG_PATH
 )
 
+# Concurrency setting (Default to 1 for strict FIFO)
+MAX_CONCURRENT_JOBS = int(os.getenv("MAX_CONCURRENT_JOBS", "1"))
+
 # Task Queue System
 class Job:
     def __init__(self, raw_message: str, nick: str):
@@ -59,7 +75,7 @@ class Job:
 
 queue = asyncio.Queue()
 jobs: Dict[str, Job] = {}
-active_job: Optional[Job] = None
+active_jobs: Dict[str, Job] = {}
 
 # Inactivity Management
 inactivity_timer: Optional[asyncio.TimerHandle] = None
@@ -72,6 +88,11 @@ def reset_inactivity_timer():
     inactivity_timer = asyncio.get_event_loop().call_later(INACTIVITY_DELAY, lambda: asyncio.create_task(unload_vram_task()))
 
 async def unload_vram_task():
+    if active_jobs or not queue.empty():
+        logger.info("Skipping VRAM unload: Jobs are still active or queued.")
+        reset_inactivity_timer()
+        return
+
     logger.info("Inactivity detected. Unloading VRAM.")
     try:
         await generator.unload_models()
@@ -80,10 +101,9 @@ async def unload_vram_task():
 
 # Worker Loop
 async def worker():
-    global active_job
     while True:
         job = await queue.get()
-        active_job = job
+        active_jobs[job.id] = job
         job.status = "processing"
         logger.info(f"Processing job {job.id} for {job.nick}")
         
@@ -97,12 +117,13 @@ async def worker():
             job.result = get_domain_path(image_path, WEB_DOMAIN) if WEB_DOMAIN else image_path
             
             job.status = "completed"
+            logger.info(f"Job {job.id} completed for {job.nick}")
         except Exception as e:
             logger.error(f"Job {job.id} failed: {e}")
             job.error = str(e)
             job.status = "failed"
         finally:
-            active_job = None
+            active_jobs.pop(job.id, None)
             job.event.set()
             queue.task_done()
             reset_inactivity_timer()
@@ -125,9 +146,8 @@ async def request_generation(request: GenerateRequest):
     jobs[job.id] = job
     await queue.put(job)
     
-    pos = queue.qsize()
-    if active_job:
-        pos += 1
+    # Position calculation: everything in queue + anything currently running
+    pos = queue.qsize() + len(active_jobs)
         
     return GenerateResponse(job_id=job.id, queue_position=pos)
 
